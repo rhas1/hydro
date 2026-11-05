@@ -6,10 +6,10 @@ from sqlalchemy import Text, case, cast, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..deps import DB, has_perm, require
-from ..models import Item, MovementKind, StockMovement, User
+from ..models import Category, Item, MovementKind, StockMovement, User
 from ..permissions import Perm
 from ..schemas import ItemCreate, ItemList, ItemMeta, ItemOut, ItemUpdate, MovementOut, StockChangeIn
-from ..utils import fmt_qty
+from ..utils import fmt_qty, is_whole
 
 router = APIRouter(prefix="/items", tags=["inventory"])
 
@@ -37,6 +37,15 @@ def get_item(db: Session, item_id: int, *, for_update: bool = False) -> Item:
     return item
 
 
+def get_category(db: Session, category_id: int | None) -> Category | None:
+    if category_id is None:
+        return None
+    category = db.get(Category, category_id)
+    if category is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "That category no longer exists")
+    return category
+
+
 def ensure_sku_free(db: Session, sku: str | None, item_id: int | None = None) -> None:
     if sku is None:
         return
@@ -50,14 +59,14 @@ def list_items(
     user: Viewer,
     db: DB,
     q: str | None = None,
-    category: str | None = None,
+    category_id: int | None = None,
     low_stock: bool = False,
     in_stock: bool = False,
     include_inactive: bool = False,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    stmt = select(Item)
+    stmt = select(Item).outerjoin(Category, Item.category_id == Category.id)
     order = [Item.name]
     if not include_inactive:
         stmt = stmt.where(Item.is_active)
@@ -68,15 +77,15 @@ def list_items(
             or_(
                 Item.name.ilike(like),
                 Item.sku.ilike(like),
-                Item.category.ilike(like),
+                Category.name.ilike(like),
                 Item.description.ilike(like),
                 cast(Item.attributes, Text).ilike(like),
             )
         )
         # An exact SKU (e.g. from a barcode scanner) always comes first.
         order.insert(0, case((func.lower(Item.sku) == term.lower(), 0), else_=1))
-    if category:
-        stmt = stmt.where(Item.category == category)
+    if category_id is not None:
+        stmt = stmt.where(Item.category_id == category_id)
     if low_stock:
         stmt = stmt.where(
             Item.track_stock, Item.reorder_level.is_not(None), Item.quantity <= Item.reorder_level
@@ -91,18 +100,21 @@ def list_items(
 
 @router.get("/meta", response_model=ItemMeta)
 def item_meta(_: Viewer, db: DB):
-    categories = db.scalars(
-        select(Item.category).where(Item.category.is_not(None)).distinct().order_by(Item.category)
-    ).all()
     used_units = db.scalars(select(Item.unit).distinct()).all()
     units = DEFAULT_UNITS + sorted(u for u in used_units if u not in DEFAULT_UNITS)
-    return ItemMeta(categories=list(categories), units=units)
+    return ItemMeta(units=units)
 
 
 @router.post("", response_model=ItemOut, status_code=status.HTTP_201_CREATED)
 def create_item(body: ItemCreate, user: Manager, db: DB):
     ensure_sku_free(db, body.sku)
+    category = get_category(db, body.category_id)
     opening = body.quantity if body.track_stock else Decimal("0")
+    if category and not category.allow_fractions and not is_whole(opening):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"{category.name} items are counted in whole numbers, so the opening quantity must be one",
+        )
     item = Item(**body.model_dump(exclude={"quantity"}), quantity=opening, is_active=True)
     db.add(item)
     db.flush()
@@ -137,6 +149,14 @@ def update_item(item_id: int, body: ItemUpdate, user: Manager, db: DB):
             data.pop(field)
     if "sku" in data:
         ensure_sku_free(db, data["sku"], item.id)
+    if "category_id" in data:
+        category = get_category(db, data["category_id"])
+        if category and not category.allow_fractions and not is_whole(item.quantity):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"{item.name} has {fmt_qty(item.quantity)} {item.unit} in stock, but {category.name} is "
+                "counted in whole numbers. Adjust the stock to a whole number first.",
+            )
     for field, value in data.items():
         setattr(item, field, value)
     db.commit()
@@ -154,6 +174,10 @@ def change_stock(item_id: int, body: StockChangeIn, user: Manager, db: DB):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Quantity received must be more than zero")
     if body.quantity == 0:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Adjustment can't be zero")
+    if not item.allow_fractions and not is_whole(body.quantity):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, f"{item.name} is counted in whole {item.unit}; enter a whole number"
+        )
 
     new_quantity = item.quantity + body.quantity
     if new_quantity < 0:

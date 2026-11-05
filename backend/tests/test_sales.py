@@ -30,7 +30,7 @@ def test_totals_with_discounts_and_tax(client, admin, manager):
     settings = client.get("/api/settings", headers=admin).json()
     client.put("/api/settings", json=settings | {"default_tax_rate": "8"}, headers=admin)
     a = create_item(client, manager, sale_price="12.50")
-    b = create_item(client, manager, name="Labour", sku=None, track_stock=False, sale_price="30")
+    b = create_item(client, manager, name="Labour", sku=None, category="Labour", fractions=True, track_stock=False, sale_price="30")
     r = client.post(
         "/api/sales",
         json={
@@ -176,3 +176,20 @@ def test_settings_permissions_and_validation(client, admin, manager):
 
 def test_api_responses_are_not_cached(client, admin):
     assert client.get("/api/settings", headers=admin).headers["cache-control"] == "no-store"
+
+
+def test_cart_with_archived_item_names_it(client, manager):
+    water = create_item(client, manager)
+    client.patch(f"/api/items/{water['id']}", json={"is_active": False}, headers=manager)
+    r = client.post("/api/sales", json={"lines": [{"item_id": water["id"], "quantity": 1}]}, headers=manager)
+    assert r.status_code == 400
+    assert "Mineral Water 1L can no longer be sold" in r.json()["detail"]
+
+
+def test_last_unit_cannot_be_sold_twice(client, manager, seller):
+    water = create_item(client, manager, quantity="1")
+    line = {"lines": [{"item_id": water["id"], "quantity": 1}]}
+    assert client.post("/api/sales", json=line, headers=seller).status_code == 201
+    r = client.post("/api/sales", json=line, headers=manager)
+    assert r.status_code == 409
+    assert "Only 0 bottle of Mineral Water 1L in stock" in r.json()["detail"]

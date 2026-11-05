@@ -1,8 +1,18 @@
-def create_item(client, headers, **overrides):
+def category_id(client, headers, name, fractions=False):
+    """Id of the named category, creating it if needed."""
+    for c in client.get("/api/categories", headers=headers).json():
+        if c["name"] == name:
+            return c["id"]
+    r = client.post("/api/categories", json={"name": name, "allow_fractions": fractions}, headers=headers)
+    assert r.status_code == 201, r.text
+    return r.json()["id"]
+
+
+def create_item(client, headers, category="Beverages", fractions=False, **overrides):
     body = {
         "name": "Mineral Water 1L",
         "sku": "WAT-1L",
-        "category": "Beverages",
+        "category_id": category_id(client, headers, category, fractions) if category else None,
         "unit": "bottle",
         "cost_price": "0.40",
         "sale_price": "1.00",
@@ -44,7 +54,7 @@ def test_sku_must_be_unique_ignoring_case(client, manager):
 
 
 def test_receive_and_adjust_stock(client, manager):
-    item = create_item(client, manager)
+    item = create_item(client, manager, category="Bulk water", fractions=True)
     url = f"/api/items/{item['id']}/stock"
 
     r = client.post(url, json={"kind": "receive", "quantity": "12", "unit_cost": "0.45"}, headers=manager)
@@ -66,13 +76,13 @@ def test_receive_and_adjust_stock(client, manager):
 
 
 def test_service_items_do_not_track_stock(client, manager):
-    item = create_item(client, manager, name="Delivery", sku=None, track_stock=False, quantity="5")
+    item = create_item(client, manager, name="Delivery", sku=None, category=None, track_stock=False, quantity="5")
     assert item["quantity"] == "0.000"
     r = client.post(f"/api/items/{item['id']}/stock", json={"kind": "receive", "quantity": "1"}, headers=manager)
     assert r.status_code == 400
 
 
-def test_search_filters_and_meta(client, manager, seller):
+def test_search_filters_and_units(client, manager, seller):
     create_item(client, manager)
     create_item(client, manager, name="Rice", sku="RICE-5", category="Grocery", unit="kg",
                 quantity="3", reorder_level="5", attributes={"Origin": "Thailand"})
@@ -85,10 +95,10 @@ def test_search_filters_and_meta(client, manager, seller):
     assert names(q="thailand") == ["Rice"]  # searches custom attributes too
     assert names(q="wat-1l") == ["Mineral Water 1L"]
     assert names(low_stock=True) == ["Rice"]
-    assert names(category="Beverages") == ["Mineral Water 1L"]
+    assert names(category_id=category_id(client, manager, "Beverages")) == ["Mineral Water 1L"]
+    assert names(q="grocery") == ["Rice"]  # searches category names too
 
     meta = client.get("/api/items/meta", headers=seller).json()
-    assert meta["categories"] == ["Beverages", "Grocery"]
     assert "bottle" in meta["units"] and "kg" in meta["units"]
 
 

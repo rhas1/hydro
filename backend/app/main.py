@@ -13,7 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from .config import get_settings
 from .db import SessionLocal
 from .models import Role, User
-from .routers import auth, dashboard, items, sales, settings, users
+from .routers import auth, categories, dashboard, items, sales, settings, users
 from .security import hash_password
 
 log = logging.getLogger("hydro")
@@ -93,7 +93,7 @@ async def security_headers(request: Request, call_next):
 
 
 api = APIRouter(prefix="/api")
-for module in (auth, users, items, sales, settings, dashboard):
+for module in (auth, users, categories, items, sales, settings, dashboard):
     api.include_router(module.router)
 
 

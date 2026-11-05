@@ -12,7 +12,7 @@ from ..invoice_pdf import render_invoice
 from ..models import Item, MovementKind, Sale, SaleLine, SaleStatus, StockMovement, User
 from ..permissions import Perm
 from ..schemas import SaleCreate, SaleList, SaleOut, VoidIn
-from ..utils import fmt_qty, money, zone
+from ..utils import fmt_qty, is_whole, money, zone
 
 router = APIRouter(prefix="/sales", tags=["sales"])
 
@@ -57,11 +57,20 @@ def create_sale(body: SaleCreate, user: Seller, db: DB):
     settings = get_business_settings(db, for_update=True)
 
     items = lock_items(db, {line.item_id for line in body.lines})
-    if any(items.get(line.item_id) is None or not items[line.item_id].is_active for line in body.lines):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Some items are no longer available")
+    gone = {line.item_id for line in body.lines if line.item_id not in items or not items[line.item_id].is_active}
+    if gone:
+        names = ", ".join(sorted(items[i].name for i in gone if i in items)) or "An item in the cart"
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, f"{names} can no longer be sold. Remove it from the cart."
+        )
 
     needed: dict[int, Decimal] = defaultdict(Decimal)
     for line in body.lines:
+        item = items[line.item_id]
+        if not item.allow_fractions and not is_whole(line.quantity):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, f"{item.name} can only be sold in whole numbers"
+            )
         needed[line.item_id] += line.quantity
     for item_id, qty in needed.items():
         item = items[item_id]

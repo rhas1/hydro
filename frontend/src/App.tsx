@@ -8,6 +8,7 @@ import { Layout } from "./components/Layout";
 import { LogoMark } from "./components/Logo";
 import { EmptyState, LinkButton } from "./components/ui";
 import Account from "./pages/Account";
+import Categories from "./pages/Categories";
 import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
 import ItemDetail from "./pages/ItemDetail";
@@ -60,6 +61,7 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="inventory" element={<Allow perm="inventory.view"><Inventory /></Allow>} />
         <Route path="inventory/new" element={<Allow perm="inventory.manage"><ItemForm /></Allow>} />
+        <Route path="inventory/categories" element={<Allow perm="inventory.manage"><Categories /></Allow>} />
         <Route path="inventory/:id" element={<Allow perm="inventory.view"><ItemDetail /></Allow>} />
         <Route path="inventory/:id/edit" element={<Allow perm="inventory.manage"><ItemForm /></Allow>} />
         <Route path="sell" element={<Allow perm="sales.create"><NewSale /></Allow>} />

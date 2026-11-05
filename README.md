@@ -2,7 +2,7 @@
 
 Inventory and invoicing for a small business. Add any kind of stock, sell from what's available, and issue invoices (on screen, printable, or as a PDF to share from your phone).
 
-- **Inventory**: any item type. Each item has a unit (pcs, kg, litre, hour…), free-form attributes (brand, size, colour, expiry, serial no.…), optional SKU/barcode, cost and selling price, and a reorder level. Services (delivery, labour) can skip stock tracking.
+- **Inventory**: any item type. Each item has a unit (pcs, kg, litre, hour…), free-form attributes (brand, size, colour, expiry, serial no.…), optional SKU/barcode, cost and selling price, and a reorder level. Services (delivery, labour) can skip stock tracking. Categories are managed as a list: you can add, rename or delete them, and renaming updates every item in the category. Each category is set to whole numbers (pcs, boxes) or fractions allowed (kg, litres), and every sale and stock change follows that setting. Uncategorised items allow fractions.
 - **Stock in/out**: receive stock, adjust it (damage, recount), and see a full history of every movement.
 - **Point of sale**: search or scan items, build a cart, add customer details, discounts and tax, then complete the sale. Stock is checked and deducted in the same transaction, so two people can't sell the last unit twice.
 - **Invoices**: numbered automatically (e.g. `INV-00042`). You can view, print, download a PDF, or share from your phone. If you void a sale, the invoice is kept and marked VOID, and its stock goes back.
@@ -88,7 +88,7 @@ docker compose exec app python -m app.cli create-admin you@example.com "Your Nam
 |---|:-:|:-:|:-:|
 | View inventory and make sales | ✓ | ✓ | ✓ |
 | See cost prices | | ✓ | ✓ |
-| Add/edit items, receive and adjust stock | | ✓ | ✓ |
+| Add/edit items and categories, receive and adjust stock | | ✓ | ✓ |
 | Change prices, give discounts, change tax at checkout | | ✓ | ✓ |
 | See everyone's sales (otherwise only your own) | | ✓ | ✓ |
 | Void sales | | ✓ | ✓ |

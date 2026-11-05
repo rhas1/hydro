@@ -36,7 +36,7 @@ def migrated_db():
 def clean_db():
     with engine.begin() as conn:
         conn.execute(
-            text("TRUNCATE stock_movements, sale_lines, sales, items, users RESTART IDENTITY CASCADE")
+            text("TRUNCATE stock_movements, sale_lines, sales, items, categories, users RESTART IDENTITY CASCADE")
         )
         conn.execute(
             text(

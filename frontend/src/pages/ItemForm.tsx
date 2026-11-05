@@ -1,15 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import { api } from "../api/client";
-import type { Item } from "../api/types";
+import type { Category, Item } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { QuantityRuleChoice } from "../components/QuantityRule";
 import { useToast } from "../components/Toast";
-import { Button, Card, ErrorBox, Field, Input, PageHeader, Spinner, Textarea, Toggle } from "../components/ui";
+import { Button, Card, ErrorBox, Field, Input, PageHeader, Select, Spinner, Textarea, Toggle } from "../components/ui";
 import { isDecimal } from "../lib/format";
-import { useItemMeta } from "../lib/hooks";
+import { useCategories, useItemMeta } from "../lib/hooks";
 
 const ATTRIBUTE_SUGGESTIONS = ["Brand", "Size", "Colour", "Model", "Material", "Weight", "Expiry date", "Batch no.", "Serial no.", "Supplier"];
 
@@ -47,10 +48,13 @@ function ItemFormInner({ item }: { item?: Item }) {
   const toast = useToast();
   const { can } = useAuth();
   const meta = useItemMeta();
+  const categories = useCategories();
 
   const [name, setName] = useState(item?.name ?? "");
   const [sku, setSku] = useState(item?.sku ?? "");
-  const [category, setCategory] = useState(item?.category ?? "");
+  const [categoryId, setCategoryId] = useState(item?.category ? String(item.category.id) : "");
+  const [newCategory, setNewCategory] = useState<string | null>(null); // non-null while adding one
+  const [newCategoryFractions, setNewCategoryFractions] = useState(false);
   const [unit, setUnit] = useState(item?.unit ?? "pcs");
   const [description, setDescription] = useState(item?.description ?? "");
   const [salePrice, setSalePrice] = useState(item ? String(Number(item.sale_price)) : "");
@@ -68,15 +72,31 @@ function ItemFormInner({ item }: { item?: Item }) {
       item ? api<Item>(`/items/${item.id}`, { method: "PATCH", body }) : api<Item>("/items", { method: "POST", body }),
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast(item ? "Item updated" : "Item added");
       navigate(`/inventory/${saved.id}`, { replace: Boolean(item) });
     },
   });
 
+  const addCategory = useMutation({
+    mutationFn: (name: string) =>
+      api<Category>("/categories", { method: "POST", body: { name, allow_fractions: newCategoryFractions } }),
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      setCategoryId(String(created.id));
+      setNewCategory(null);
+      setNewCategoryFractions(false);
+    },
+  });
+
   function submit(e: FormEvent) {
     e.preventDefault();
     setFormError(null);
+    if (newCategory !== null) return setFormError("Add or cancel the new category first");
+    if (!item && trackStock && wholeOnly && quantity && !Number.isInteger(Number(quantity))) {
+      return setFormError(`${selectedCategory?.name} items are counted in whole numbers, so the opening quantity must be one`);
+    }
     const numbers: [string, string][] = [
       ["Sale price", salePrice || "0"],
       ["Cost price", costPrice || "0"],
@@ -92,7 +112,7 @@ function ItemFormInner({ item }: { item?: Item }) {
     const body: Record<string, unknown> = {
       name,
       sku,
-      category,
+      category_id: categoryId ? Number(categoryId) : null,
       unit,
       description,
       sale_price: salePrice || "0",
@@ -104,6 +124,9 @@ function ItemFormInner({ item }: { item?: Item }) {
     if (!item) body.quantity = trackStock ? quantity || "0" : "0";
     save.mutate(body);
   }
+
+  const selectedCategory = categories.data?.find((c) => String(c.id) === categoryId);
+  const wholeOnly = selectedCategory ? !selectedCategory.allow_fractions : false;
 
   const usedKeys = new Set(attrs.map((a) => a.key.trim().toLowerCase()));
   const suggestions = ATTRIBUTE_SUGGESTIONS.filter((s) => !usedKeys.has(s.toLowerCase()));
@@ -123,14 +146,62 @@ function ItemFormInner({ item }: { item?: Item }) {
                 {(id) => <Input id={id} value={sku} onChange={(e) => setSku(e.target.value)} autoCapitalize="characters" />}
               </Field>
               <Field label="Category">
-                {(id) => (
-                  <>
-                    <Input id={id} list={`${id}-list`} value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Pick or type a new one" />
-                    <datalist id={`${id}-list`}>
-                      {meta.data?.categories.map((c) => <option key={c} value={c} />)}
-                    </datalist>
-                  </>
-                )}
+                {(id) =>
+                  newCategory === null ? (
+                    <Select
+                      id={id}
+                      value={categoryId}
+                      onChange={(e) => (e.target.value === "new" ? setNewCategory("") : setCategoryId(e.target.value))}
+                    >
+                      <option value="">No category</option>
+                      {categories.data?.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                      <option value="new">+ New category…</option>
+                    </Select>
+                  ) : (
+                    <>
+                      <div className="flex gap-2">
+                        <Input
+                          id={id}
+                          autoFocus
+                          placeholder="New category name"
+                          value={newCategory}
+                          maxLength={100}
+                          onChange={(e) => setNewCategory(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              if (newCategory.trim()) addCategory.mutate(newCategory.trim());
+                            }
+                          }}
+                        />
+                        <Button
+                          loading={addCategory.isPending}
+                          disabled={!newCategory.trim()}
+                          onClick={() => addCategory.mutate(newCategory.trim())}
+                        >
+                          Add
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          icon={X}
+                          aria-label="Cancel new category"
+                          onClick={() => {
+                            setNewCategory(null);
+                            addCategory.reset();
+                          }}
+                        />
+                      </div>
+                      <div className="mt-2">
+                        <QuantityRuleChoice value={newCategoryFractions} onChange={setNewCategoryFractions} />
+                      </div>
+                      {addCategory.error && <p className="mt-1.5 text-xs text-red-600">{addCategory.error.message}</p>}
+                    </>
+                  )
+                }
               </Field>
               <Field label="Description" className="sm:col-span-2">
                 {(id) => <Textarea id={id} rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />}
@@ -220,8 +291,10 @@ function ItemFormInner({ item }: { item?: Item }) {
               {trackStock && (
                 <div className="grid grid-cols-2 gap-4 lg:grid-cols-1">
                   {!item && (
-                    <Field label="Opening quantity">
-                      {(id) => <Input id={id} inputMode="decimal" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="0" />}
+                    <Field label="Opening quantity" hint={wholeOnly ? "Whole numbers (set by the category)." : undefined}>
+                      {(id) => (
+                        <Input id={id} inputMode={wholeOnly ? "numeric" : "decimal"} value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="0" />
+                      )}
                     </Field>
                   )}
                   <Field label="Reorder level" hint="Warn when stock falls to this.">

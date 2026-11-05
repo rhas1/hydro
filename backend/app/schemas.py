@@ -123,7 +123,7 @@ def _clean_attributes(v: dict[str, str] | None) -> dict[str, str] | None:
 class ItemFields(BaseModel):
     sku: opt_str(64) = None
     name: ReqStr
-    category: opt_str(100) = None
+    category_id: int | None = None
     unit: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=32)] = "pcs"
     description: LongText = None
     cost_price: Money = Decimal("0")
@@ -142,7 +142,7 @@ class ItemCreate(ItemFields):
 class ItemUpdate(BaseModel):
     sku: opt_str(64) = None
     name: ReqStr | None = None
-    category: opt_str(100) = None
+    category_id: int | None = None
     unit: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=32)] | None = None
     description: LongText = None
     cost_price: Money | None = None
@@ -155,11 +155,34 @@ class ItemUpdate(BaseModel):
     _clean_attributes = field_validator("attributes")(_clean_attributes)
 
 
+CategoryName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+
+
+class CategoryRef(ORM):
+    id: int
+    name: str
+    allow_fractions: bool
+
+
+class CategoryOut(CategoryRef):
+    item_count: int  # active items in the category
+
+
+class CategoryIn(BaseModel):
+    name: CategoryName
+    allow_fractions: bool = False
+
+
+class CategoryUpdate(BaseModel):
+    name: CategoryName | None = None
+    allow_fractions: bool | None = None
+
+
 class ItemOut(ORM):
     id: int
     sku: str | None
     name: str
-    category: str | None
+    category: CategoryRef | None
     unit: str
     description: str | None
     cost_price: Decimal | None  # None when the caller may not see costs
@@ -167,6 +190,7 @@ class ItemOut(ORM):
     quantity: Decimal
     reorder_level: Decimal | None
     track_stock: bool
+    allow_fractions: bool  # from the category; false means whole numbers only
     attributes: dict[str, str]
     is_active: bool
     created_at: datetime
@@ -188,7 +212,6 @@ class ItemList(BaseModel):
 
 
 class ItemMeta(BaseModel):
-    categories: list[str]
     units: list[str]
 
 

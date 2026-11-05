@@ -42,6 +42,7 @@ export default function ItemDetail() {
     mutationFn: (active: boolean) => api<Item>(`/items/${itemId}`, { method: "PATCH", body: { is_active: active } }),
     onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       toast(saved.is_active ? "Item restored" : "Item archived");
     },
@@ -62,7 +63,11 @@ export default function ItemDetail() {
         subtitle={
           <span className="flex flex-wrap items-center gap-2">
             {item.sku && <span>SKU {item.sku}</span>}
-            {item.category && <Badge tone="brand">{item.category}</Badge>}
+            {item.category && (
+              <Link to={`/inventory?category=${item.category.id}`}>
+                <Badge tone="brand">{item.category.name}</Badge>
+              </Link>
+            )}
             {!item.is_active && <Badge tone="red">Archived</Badge>}
           </span>
         }
@@ -219,6 +224,9 @@ function StockModal({ item, mode, onClose }: { item: Item; mode: StockMode; onCl
   function submit(e: FormEvent) {
     e.preventDefault();
     if (!isDecimal(amount) || Number(amount) <= 0) return setFormError("Enter a quantity above zero");
+    if (!item.allow_fractions && !Number.isInteger(Number(amount))) {
+      return setFormError(`${item.name} is counted in whole ${item.unit}; enter a whole number`);
+    }
     if (unitCost && !isDecimal(unitCost)) return setFormError("Unit cost must be a number");
     setFormError(null);
     const signed = mode === "adjust" && direction === "remove" ? `-${amount.trim()}` : amount.trim();
@@ -242,7 +250,7 @@ function StockModal({ item, mode, onClose }: { item: Item; mode: StockMode; onCl
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" form="stock-form" loading={save.isPending}>
+          <Button type="submit" form="stock-form" loading={save.isPending} disabled={after < 0}>
             {mode === "receive" ? "Add to stock" : "Save adjustment"}
           </Button>
         </>
@@ -267,8 +275,10 @@ function StockModal({ item, mode, onClose }: { item: Item; mode: StockMode; onCl
           </div>
         )}
         <div className="grid grid-cols-2 gap-4">
-          <Field label={`Quantity (${item.unit})`}>
-            {(id) => <Input id={id} inputMode="decimal" autoFocus value={amount} onChange={(e) => setAmount(e.target.value)} />}
+          <Field label={`Quantity (${item.unit})`} hint={item.allow_fractions ? undefined : "Whole numbers only."}>
+            {(id) => (
+              <Input id={id} inputMode={item.allow_fractions ? "decimal" : "numeric"} autoFocus value={amount} onChange={(e) => setAmount(e.target.value)} />
+            )}
           </Field>
           {mode === "receive" && can("inventory.view_cost") && (
             <Field label="Unit cost" hint="Updates the item's cost price.">
@@ -280,8 +290,14 @@ function StockModal({ item, mode, onClose }: { item: Item; mode: StockMode; onCl
           {(id) => <Input id={id} value={note} onChange={(e) => setNote(e.target.value)} />}
         </Field>
         {amount && isDecimal(amount) && (
-          <p className={cx("text-sm", after < 0 ? "text-red-600" : "text-slate-500")}>
-            New stock level: <span className="font-semibold">{qty(after)} {item.unit}</span>
+          <p className={cx("text-sm", after < 0 ? "font-medium text-red-600" : "text-slate-500")}>
+            {after < 0 ? (
+              <>Can't remove more than the {qty(item.quantity)} {item.unit} on hand.</>
+            ) : (
+              <>
+                New stock level: <span className="font-semibold">{qty(after)} {item.unit}</span>
+              </>
+            )}
           </p>
         )}
         <ErrorBox error={formError ?? save.error} />

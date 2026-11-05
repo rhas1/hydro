@@ -32,11 +32,21 @@ export interface Me extends User {
   permissions: Permission[];
 }
 
+export interface CategoryRef {
+  id: number;
+  name: string;
+  allow_fractions: boolean;
+}
+
+export interface Category extends CategoryRef {
+  item_count: number; // active items
+}
+
 export interface Item {
   id: number;
   sku: string | null;
   name: string;
-  category: string | null;
+  category: CategoryRef | null;
   unit: string;
   description: string | null;
   cost_price: Decimal | null;
@@ -44,6 +54,7 @@ export interface Item {
   quantity: Decimal;
   reorder_level: Decimal | null;
   track_stock: boolean;
+  allow_fractions: boolean; // false: whole numbers only (set by the category)
   attributes: Record<string, string>;
   is_active: boolean;
   low_stock: boolean;
@@ -57,7 +68,6 @@ export interface ItemList {
 }
 
 export interface ItemMeta {
-  categories: string[];
   units: string[];
 }
 

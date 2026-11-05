@@ -13,7 +13,9 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    false,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -62,6 +64,17 @@ class User(Timestamped, Base):
     password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class Category(Timestamped, Base):
+    __tablename__ = "categories"
+    # Names are unique ignoring case ("Grocery" and "grocery" are the same category).
+    __table_args__ = (Index("uq_categories_name_lower", text("lower(name)"), unique=True),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    # Off: counted in whole numbers (pcs, boxes). On: part quantities allowed (kg, litres).
+    allow_fractions: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+
+
 class Item(Timestamped, Base):
     __tablename__ = "items"
     __table_args__ = (CheckConstraint("quantity >= 0", name="item_quantity_non_negative"),)
@@ -69,7 +82,10 @@ class Item(Timestamped, Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     sku: Mapped[str | None] = mapped_column(String(64), unique=True)
     name: Mapped[str] = mapped_column(String(255), index=True)
-    category: Mapped[str | None] = mapped_column(String(100), index=True)
+    # Deleting a category leaves its items uncategorised.
+    category_id: Mapped[int | None] = mapped_column(
+        ForeignKey("categories.id", ondelete="SET NULL"), index=True
+    )
     unit: Mapped[str] = mapped_column(String(32), default="pcs")
     description: Mapped[str | None] = mapped_column(Text)
     cost_price: Mapped[Decimal] = mapped_column(Money, default=Decimal("0"))
@@ -85,6 +101,13 @@ class Item(Timestamped, Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+    category: Mapped[Category | None] = relationship(lazy="selectin")
+
+    @property
+    def allow_fractions(self) -> bool:
+        """Whether quantities may have decimals. Uncategorised items allow them."""
+        return self.category.allow_fractions if self.category else True
 
 
 class StockMovement(Timestamped, Base):

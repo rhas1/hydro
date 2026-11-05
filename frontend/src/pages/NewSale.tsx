@@ -1,9 +1,9 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ChevronDown, Minus, Package, Plus, ScanBarcode, Search, ShoppingCart, Trash2, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useNavigate } from "react-router";
 
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
 import type { Item, ItemList, PaymentMethod, Sale } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../components/Toast";
@@ -69,11 +69,57 @@ export default function NewSale() {
     placeholderData: keepPreviousData,
   });
 
+  // Keep stock for everything in the cart up to date, so sales made on another
+  // device (or an item being archived) show up here before checkout.
+  const liveCart = useQueries({
+    queries: cart.map((line) => ({
+      queryKey: ["items", "detail", line.item.id],
+      queryFn: () => api<Item>(`/items/${line.item.id}`),
+      staleTime: 0,
+      refetchInterval: 20_000,
+    })),
+  });
+  const live = new Map<number, Item | null>();
+  cart.forEach((line, i) => {
+    const query = liveCart[i];
+    if (query?.data) live.set(line.item.id, query.data);
+    else if (query?.error instanceof ApiError && query.error.status === 404) live.set(line.item.id, null);
+  });
+
+  /** Latest known version of an item; null if it was deleted. */
+  function latest(item: Item): Item | null {
+    return live.has(item.id) ? (live.get(item.id) ?? null) : item;
+  }
+
+  /** How much of an item can be sold right now. */
+  function sellable(item: Item): number {
+    const current = latest(item);
+    if (!current || !current.is_active) return 0;
+    return current.track_stock ? Number(current.quantity) : Infinity;
+  }
+
+  function stockMessage(item: Item) {
+    const left = sellable(item);
+    return left <= 0 ? `${item.name} is out of stock` : `Only ${qty(left)} ${item.unit} of ${item.name} in stock`;
+  }
+
+  /** Why a cart line can't be sold as it is, or null if it's fine. */
+  function lineProblem(line: CartLine): string | null {
+    const current = latest(line.item);
+    if (!current || !current.is_active) return "No longer for sale — remove it";
+    if (!isDecimal(line.quantity) || num(line.quantity) <= 0) return "Enter a quantity";
+    if (!current.allow_fractions && !Number.isInteger(num(line.quantity))) return "Whole numbers only";
+    if (num(line.quantity) > sellable(line.item)) {
+      return sellable(line.item) <= 0 ? "Out of stock — remove it" : `Only ${qty(current.quantity)} ${current.unit} in stock`;
+    }
+    return null;
+  }
+
   function addItem(item: Item) {
     const existing = cart.find((line) => line.item.id === item.id);
     const nextQty = existing ? num(existing.quantity) + 1 : 1;
-    if (item.track_stock && nextQty > Number(item.quantity)) {
-      toast(`Only ${qty(item.quantity)} ${item.unit} of ${item.name} in stock`, "error");
+    if (nextQty > sellable(item)) {
+      toast(stockMessage(item), "error");
       return;
     }
     if (existing) {
@@ -90,6 +136,10 @@ export default function NewSale() {
   function step1(index: number, delta: number) {
     const line = cart[index];
     const next = Math.max(0, round2(num(line.quantity) + delta));
+    if (delta > 0 && next > sellable(line.item)) {
+      toast(stockMessage(line.item), "error");
+      return;
+    }
     if (next === 0) setCart(cart.filter((_, i) => i !== index));
     else updateLine(index, { quantity: String(next) });
   }
@@ -123,6 +173,8 @@ export default function NewSale() {
   }, [cart, orderDiscount, taxRate]);
 
   const itemCount = cart.length;
+  const problems = cart.map(lineProblem);
+  const blocked = problems.some(Boolean);
 
   const checkout = useMutation({
     mutationFn: (body: object) => api<Sale>("/sales", { method: "POST", body }),
@@ -135,14 +187,16 @@ export default function NewSale() {
       toast(`Sale ${sale.invoice_number} completed`);
       navigate(`/sales/${sale.id}`);
     },
+    // Stock may have changed under us (another device sold it): refresh what the cart shows.
+    onError: () => queryClient.invalidateQueries({ queryKey: ["items"] }),
   });
 
   function submit(e: FormEvent) {
     e.preventDefault();
     setFormError(null);
     if (!cart.length) return setFormError("Add at least one item");
-    for (const line of cart) {
-      if (!isDecimal(line.quantity) || num(line.quantity) <= 0) return setFormError(`Check the quantity for ${line.item.name}`);
+    for (const [index, line] of cart.entries()) {
+      if (problems[index]) return setFormError(`${line.item.name}: ${problems[index]}`);
       if (canDiscount && !isDecimal(line.unitPrice)) return setFormError(`Check the price for ${line.item.name}`);
       if (line.discount && !isDecimal(line.discount)) return setFormError(`Check the discount for ${line.item.name}`);
       if (lineAmounts(line).total < 0) return setFormError(`Discount on ${line.item.name} is more than the line amount`);
@@ -195,7 +249,7 @@ export default function NewSale() {
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 2xl:grid-cols-3">
             {results.data.items.map((item) => {
-              const out = item.track_stock && Number(item.quantity) <= 0;
+              const out = sellable(item) <= 0;
               const count = inCart.get(item.id);
               return (
                 <button
@@ -274,9 +328,9 @@ export default function NewSale() {
             <ul className="max-h-[50dvh] divide-y divide-slate-100 overflow-y-auto lg:max-h-[38dvh]">
               {cart.map((line, index) => {
                 const { total } = lineAmounts(line);
-                const over = line.item.track_stock && num(line.quantity) > Number(line.item.quantity);
+                const problem = problems[index];
                 return (
-                  <li key={line.item.id} className="px-4 py-3">
+                  <li key={line.item.id} className={cx("px-4 py-3", problem && "bg-red-50/60")}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate font-medium">{line.item.name}</p>
@@ -294,7 +348,7 @@ export default function NewSale() {
                           {num(line.quantity) <= 1 ? <Trash2 className="size-4" /> : <Minus className="size-4" />}
                         </button>
                         <input
-                          inputMode="decimal"
+                          inputMode={latest(line.item)?.allow_fractions === false ? "numeric" : "decimal"}
                           value={line.quantity}
                           onChange={(e) => updateLine(index, { quantity: e.target.value })}
                           className="w-14 border-0 bg-transparent p-0 text-center font-semibold tabular-nums focus:ring-0 focus:outline-none"
@@ -327,11 +381,7 @@ export default function NewSale() {
                         </div>
                       )}
                     </div>
-                    {over && (
-                      <p className="mt-1 text-xs font-medium text-amber-700">
-                        Only {qty(line.item.quantity)} {line.item.unit} in stock
-                      </p>
-                    )}
+                    {problem && <p className="mt-1.5 text-xs font-semibold text-red-600">{problem}</p>}
                   </li>
                 );
               })}
@@ -423,7 +473,10 @@ export default function NewSale() {
               <span className="text-2xl font-bold tracking-tight tabular-nums">{money(totals.total, currency)}</span>
             </div>
             <ErrorBox error={formError ?? checkout.error} />
-            <Button type="submit" size="lg" className="mt-2 w-full" loading={checkout.isPending} disabled={!itemCount}>
+            {blocked && !formError && (
+              <p className="text-center text-xs font-medium text-red-600">Fix the items marked in red to complete the sale.</p>
+            )}
+            <Button type="submit" size="lg" className="mt-2 w-full" loading={checkout.isPending} disabled={!itemCount || blocked}>
               Complete sale
             </Button>
           </div>

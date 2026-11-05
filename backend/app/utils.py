@@ -18,6 +18,10 @@ def money(value: Decimal) -> Decimal:
     return value.quantize(CENT, rounding=ROUND_HALF_UP)
 
 
+def is_whole(value: Decimal) -> bool:
+    return value == value.to_integral_value()
+
+
 def fmt_qty(value: Decimal) -> str:
     text = f"{value:,.3f}".rstrip("0").rstrip(".")
     return text or "0"

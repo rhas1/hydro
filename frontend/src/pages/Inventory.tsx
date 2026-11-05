@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { ChevronRight, Package, PackagePlus, Search } from "lucide-react";
+import { ChevronRight, Package, PackagePlus, Search, Tags } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
@@ -8,7 +8,7 @@ import type { Item, ItemList } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { Badge, Card, cx, EmptyState, ErrorBox, Input, LinkButton, PageHeader, Pager, Select, Spinner } from "../components/ui";
 import { money, qty } from "../lib/format";
-import { useCurrency, useDebounced, useItemMeta } from "../lib/hooks";
+import { useCategories, useCurrency, useDebounced } from "../lib/hooks";
 
 const LIMIT = 50;
 
@@ -41,7 +41,7 @@ export default function Inventory() {
   const { can } = useAuth();
   const currency = useCurrency();
   const navigate = useNavigate();
-  const meta = useItemMeta();
+  const categories = useCategories();
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState(params.get("q") ?? "");
   const q = useDebounced(search.trim());
@@ -75,7 +75,7 @@ export default function Inventory() {
     queryKey: ["items", "list", { q, category, low, archived, offset }],
     queryFn: () =>
       api<ItemList>("/items", {
-        query: { q, category, low_stock: low, include_inactive: archived, limit: LIMIT, offset },
+        query: { q, category_id: category, low_stock: low, include_inactive: archived, limit: LIMIT, offset },
       }),
     placeholderData: keepPreviousData,
   });
@@ -90,9 +90,14 @@ export default function Inventory() {
         subtitle={data ? `${data.total} ${data.total === 1 ? "item" : "items"}${filtered ? " match" : ""}` : " "}
         actions={
           can("inventory.manage") && (
-            <LinkButton to="/inventory/new" icon={PackagePlus}>
-              Add item
-            </LinkButton>
+            <>
+              <LinkButton to="/inventory/categories" icon={Tags} variant="secondary">
+                Categories
+              </LinkButton>
+              <LinkButton to="/inventory/new" icon={PackagePlus}>
+                Add item
+              </LinkButton>
+            </>
           )
         }
       />
@@ -116,8 +121,10 @@ export default function Inventory() {
             aria-label="Category"
           >
             <option value="">All categories</option>
-            {meta.data?.categories.map((c) => (
-              <option key={c}>{c}</option>
+            {categories.data?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
             ))}
           </Select>
           <FilterChip active={low} onClick={() => update({ low: low ? null : "1" })}>
@@ -157,7 +164,7 @@ export default function Inventory() {
                   <div className="min-w-0 flex-1">
                     <p className={cx("truncate font-medium", !item.is_active && "text-slate-400")}>{item.name}</p>
                     <p className="truncate text-xs text-slate-500">
-                      {[item.sku, item.category].filter(Boolean).join(" · ") || "—"}
+                      {[item.sku, item.category?.name].filter(Boolean).join(" · ") || "—"}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
@@ -194,7 +201,7 @@ export default function Inventory() {
                           .join(" · ")}
                       </p>
                     </td>
-                    <td className="px-3 py-3 text-slate-600">{item.category ?? "—"}</td>
+                    <td className="px-3 py-3 text-slate-600">{item.category?.name ?? "—"}</td>
                     <td className="px-3 py-3">
                       <StockBadge item={item} />
                     </td>
