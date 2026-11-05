@@ -1,0 +1,68 @@
+@import "@fontsource-variable/inter";
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Hydro aqua — actions, links, highlights */
+  --color-brand-50: #effbff;
+  --color-brand-100: #def5ff;
+  --color-brand-200: #b6edff;
+  --color-brand-300: #75e1ff;
+  --color-brand-400: #2cd2ff;
+  --color-brand-500: #00b8f0;
+  --color-brand-600: #0094cc;
+  --color-brand-700: #0076a5;
+  --color-brand-800: #046388;
+  --color-brand-900: #0a5270;
+  --color-brand-950: #07344b;
+
+  /* Hydro abyss — deep-water navy for chrome and headings */
+  --color-abyss-300: #9cb8d6;
+  --color-abyss-400: #6d93bb;
+  --color-abyss-500: #42709f;
+  --color-abyss-600: #275684;
+  --color-abyss-700: #154270;
+  --color-abyss-800: #0f3357;
+  --color-abyss-900: #0a2540;
+  --color-abyss-950: #06182b;
+
+  --color-mist: #f3f7fa;
+
+  --animate-drift: drift 14s linear infinite;
+  @keyframes drift {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-mist text-abyss-900 antialiased;
+  }
+  input,
+  select,
+  textarea {
+    /* 16px stops iOS Safari zooming into focused fields */
+    font-size: max(16px, 1em);
+  }
+  @media (min-width: 1024px) {
+    input,
+    select,
+    textarea {
+      font-size: 0.875rem;
+    }
+  }
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  body {
+    background: white;
+  }
+}

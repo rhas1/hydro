@@ -1,0 +1,43 @@
+# Runs Hydro on one machine: Postgres + the app (API and frontend on one port).
+#   cp .env.example .env   # then fill it in
+#   docker compose up -d --build
+name: hydro
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hydro
+      POSTGRES_USER: hydro
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Localhost only — handy for local development and database tools.
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hydro -d hydro"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+psycopg://hydro:${POSTGRES_PASSWORD}@db:5432/hydro
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
+      INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME:-Administrator}
+    ports:
+      # Bound to localhost by default; `tailscale serve` publishes it to your tailnet.
+      - "${HYDRO_BIND:-127.0.0.1}:${HYDRO_PORT:-8000}:8000"
+
+volumes:
+  pgdata:
