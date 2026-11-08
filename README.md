@@ -170,6 +170,26 @@ cd backend
 TEST_DATABASE_URL=postgresql+psycopg://hydro:<POSTGRES_PASSWORD>@localhost:5432/hydro_test .venv/bin/pytest
 ```
 
+**Browser tests (Playwright)** click through the real app in Chrome, plus Android Chrome and iPhone Safari sizes for the phone layout. They cover:
+- signing in, and what each role can see and do
+- inventory, stock and categories
+- the point of sale's stock and whole-number rules
+- invoices, PDFs and voids
+- settings and users
+- staying signed in when the connection drops
+
+Any browser console error fails a test. The tests start their own copy of Hydro in Docker (project `hydro-e2e`, ports 8100 and 5499) and delete it afterwards, so they never touch a real installation's data. Docker must be running:
+
+```sh
+cd e2e
+npm install
+npx playwright install chromium webkit   # first time only
+npm test                                 # about a minute
+npm run report                           # open the HTML report (screenshots and traces of any failures)
+```
+
+Set `E2E_KEEP=1` to leave the test copy running afterwards at http://localhost:8100.
+
 **Schema changes**: edit `backend/app/models.py`, then run `.venv/bin/alembic revision --autogenerate -m "what changed"`. Review the generated file in `backend/alembic/versions/` and commit it.
 
 ## Layout
@@ -180,6 +200,7 @@ hydro/
 ├── frontend/           Vite + React app; public/ holds the icon set and PWA manifest
 ├── scripts/            new-env.ps1, backup.ps1, restore.ps1 (Windows); backup.sh, restore.sh (Mac/Linux)
 ├── docs/deploy-gcp.md  moving to Cloud Run + Cloud SQL + Firebase Hosting
+├── e2e/                Playwright browser tests (start their own Hydro in Docker)
 ├── Dockerfile          all-in-one image (frontend + API) used by docker-compose
 ├── docker-compose.yml  laptop deployment
 └── firebase.json       Firebase Hosting config with the /api → Cloud Run rewrite

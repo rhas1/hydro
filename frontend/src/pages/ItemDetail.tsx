@@ -96,7 +96,7 @@ export default function ItemDetail() {
             <div>
               <p className="text-sm font-medium text-slate-500">{item.track_stock ? "In stock" : "Stock"}</p>
               {item.track_stock ? (
-                <p className={cx("text-4xl font-bold tracking-tight", item.low_stock && "text-amber-600", Number(item.quantity) <= 0 && "text-red-600")}>
+                <p data-testid="stock-level" className={cx("text-4xl font-bold tracking-tight", item.low_stock && "text-amber-600", Number(item.quantity) <= 0 && "text-red-600")}>
                   {qty(item.quantity)} <span className="text-xl font-semibold text-slate-400">{item.unit}</span>
                 </p>
               ) : (

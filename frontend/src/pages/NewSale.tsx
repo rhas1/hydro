@@ -470,7 +470,7 @@ export default function NewSale() {
             )}
             <div className="flex items-baseline justify-between pt-1">
               <span className="text-base font-semibold">Total</span>
-              <span className="text-2xl font-bold tracking-tight tabular-nums">{money(totals.total, currency)}</span>
+              <span data-testid="cart-total" className="text-2xl font-bold tracking-tight tabular-nums">{money(totals.total, currency)}</span>
             </div>
             <ErrorBox error={formError ?? checkout.error} />
             {blocked && !formError && (

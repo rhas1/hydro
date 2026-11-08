@@ -1,12 +1,13 @@
-import { ShieldAlert } from "lucide-react";
+import { RefreshCw, ShieldAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router";
 
+import { getToken } from "./api/client";
 import type { Permission } from "./api/types";
 import { useAuth } from "./auth/AuthContext";
 import { Layout } from "./components/Layout";
 import { LogoMark } from "./components/Logo";
-import { EmptyState, LinkButton } from "./components/ui";
+import { Button, EmptyState, LinkButton } from "./components/ui";
 import Account from "./pages/Account";
 import Categories from "./pages/Categories";
 import Dashboard from "./pages/Dashboard";
@@ -21,12 +22,24 @@ import Settings from "./pages/Settings";
 import UsersPage from "./pages/Users";
 
 function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, startupError, retry } = useAuth();
   const location = useLocation();
   if (loading) {
     return (
       <div className="grid min-h-dvh place-items-center bg-abyss-900">
         <LogoMark className="size-14 animate-pulse" />
+      </div>
+    );
+  }
+  if (!user && startupError && getToken()) {
+    // Still signed in, just can't reach the server right now.
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-abyss-900 px-6 text-center">
+        <LogoMark className="size-14" />
+        <p className="max-w-sm text-white">{startupError}</p>
+        <Button icon={RefreshCw} onClick={retry}>
+          Try again
+        </Button>
       </div>
     );
   }

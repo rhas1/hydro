@@ -203,7 +203,7 @@ export default function SaleDetail() {
               )}
               <div className="flex items-baseline justify-between rounded-xl bg-gradient-to-r from-brand-500 to-brand-700 px-3 py-2.5 text-white print:bg-brand-600">
                 <dt className="font-semibold">Total</dt>
-                <dd className="text-lg font-bold tabular-nums">{m(sale.total)}</dd>
+                <dd data-testid="invoice-total" className="text-lg font-bold tabular-nums">{m(sale.total)}</dd>
               </div>
             </dl>
           </div>
