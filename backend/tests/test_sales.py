@@ -1,3 +1,6 @@
+from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
+
 from app.models import Role
 
 from .conftest import login, make_user
@@ -193,3 +196,34 @@ def test_last_unit_cannot_be_sold_twice(client, manager, seller):
     r = client.post("/api/sales", json=line, headers=manager)
     assert r.status_code == 409
     assert "Only 0 bottle of Mineral Water 1L in stock" in r.json()["detail"]
+
+
+def test_invoice_numbers_skip_ones_already_used(client, admin, manager):
+    water = create_item(client, manager)
+    line = {"lines": [{"item_id": water["id"], "quantity": 1}]}
+    first = client.post("/api/sales", json=line, headers=manager).json()["invoice_number"]
+    settings = client.get("/api/settings", headers=admin).json()
+    client.put("/api/settings", json=settings | {"next_invoice_number": 1}, headers=admin)  # rewound
+    second = client.post("/api/sales", json=line, headers=manager).json()["invoice_number"]
+    assert (first, second) == ("INV-00001", "INV-00002")
+
+
+def test_date_filters_use_the_business_time_zone(client, admin, manager):
+    # Pick a zone whose calendar date differs from UTC's right now, so filtering
+    # by UTC days instead of the shop's days would fail this test at any hour.
+    tz = "Pacific/Kiritimati" if datetime.now(UTC).hour >= 10 else "Pacific/Pago_Pago"  # UTC+14 / UTC-11
+    settings = client.get("/api/settings", headers=admin).json()
+    client.put("/api/settings", json=settings | {"timezone": tz}, headers=admin)
+    water = create_item(client, manager)
+    client.post("/api/sales", json={"lines": [{"item_id": water["id"], "quantity": 1}]}, headers=manager)
+
+    today = datetime.now(ZoneInfo(tz)).date()
+    assert today != datetime.now(UTC).date()
+
+    def count(day):
+        params = {"date_from": day.isoformat(), "date_to": day.isoformat()}
+        return client.get("/api/sales", params=params, headers=manager).json()["total"]
+
+    assert count(today) == 1
+    assert count(today - timedelta(days=1)) == 0
+    assert count(today + timedelta(days=1)) == 0

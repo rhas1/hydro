@@ -61,7 +61,6 @@ def list_items(
     q: str | None = None,
     category_id: int | None = None,
     low_stock: bool = False,
-    in_stock: bool = False,
     include_inactive: bool = False,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -90,8 +89,6 @@ def list_items(
         stmt = stmt.where(
             Item.track_stock, Item.reorder_level.is_not(None), Item.quantity <= Item.reorder_level
         )
-    if in_stock:
-        stmt = stmt.where(or_(~Item.track_stock, Item.quantity > 0))
 
     total = db.scalar(select(func.count()).select_from(stmt.subquery()))
     items = db.scalars(stmt.order_by(*order).limit(limit).offset(offset)).all()

@@ -116,6 +116,51 @@ test.describe("selling as a manager", () => {
     await expect(page.getByRole("button", { name: "Complete sale" })).toBeDisabled();
   });
 
+  test("the cart total matches the invoice to the cent, including tax", async ({ page, api }) => {
+    const loose = await api.manager.createCategory(uid("Loose "), true);
+    const beans = await api.manager.createItem({ name: uid("Beans "), category_id: loose.id, unit: "kg", sale_price: "0.99", quantity: "50" });
+    const box = await api.manager.createItem({ name: uid("Box "), sale_price: "65.50" });
+    await page.goto("/sell");
+    await findAndTap(page, beans.name);
+    await page.getByLabel(`Quantity of ${beans.name}`).fill("9.5");
+    await findAndTap(page, box.name);
+    await page.getByLabel("Tax rate %").fill("15");
+    // 9.5 x 0.99 = 9.405 -> 9.41; + 65.50 = 74.91; 15% tax = 11.2365 -> 11.24; total 86.15
+    await expect(page.getByTestId("cart-total")).toContainText("86.15");
+    await page.getByRole("button", { name: "Complete sale" }).click();
+    await expect(page.getByTestId("invoice-total")).toContainText("86.15");
+  });
+
+  test("tapping + or - on a weighed quantity keeps all three decimals", async ({ page, api }) => {
+    const loose = await api.manager.createCategory(uid("Loose "), true);
+    const nuts = await api.manager.createItem({ name: uid("Nuts "), category_id: loose.id, unit: "kg", quantity: "20" });
+    await page.goto("/sell");
+    await findAndTap(page, nuts.name);
+    const quantity = page.getByLabel(`Quantity of ${nuts.name}`);
+    await quantity.fill("1.255");
+    await cartLine(page, nuts.name).getByRole("button", { name: "Increase" }).click();
+    await expect(quantity).toHaveValue("2.255");
+    await cartLine(page, nuts.name).getByRole("button", { name: "Decrease" }).click();
+    await expect(quantity).toHaveValue("1.255");
+  });
+
+  test("a price change reaches the cart, but a price the manager typed is kept", async ({ page, api }) => {
+    const plain = await api.manager.createItem({ name: uid("Plain "), sale_price: "50" });
+    const haggled = await api.manager.createItem({ name: uid("Haggled "), sale_price: "40" });
+    await page.goto("/sell");
+    await findAndTap(page, plain.name);
+    await findAndTap(page, haggled.name);
+    await cartLine(page, haggled.name).getByLabel("Unit price").fill("30");
+    await expect(page.getByTestId("cart-total")).toContainText("80.00");
+
+    await api.manager.call("PATCH", `/items/${plain.id}`, { sale_price: "60" });
+    await api.manager.call("PATCH", `/items/${haggled.id}`, { sale_price: "70" });
+    await returnToTab(page);
+    await expect(page.getByTestId("cart-total")).toContainText("90.00"); // new 60 + the typed 30
+    await page.getByRole("button", { name: "Complete sale" }).click();
+    await expect(page.getByTestId("invoice-total")).toContainText("90.00");
+  });
+
   test("download the invoice as a PDF", async ({ page, api }) => {
     const item = await api.manager.createItem();
     const sale = await api.manager.sell([{ item_id: item.id, quantity: 1 }], { customer_name: "PDF Test" });
@@ -165,6 +210,18 @@ test.describe("selling as sales staff", () => {
     await page.getByRole("button", { name: "Complete sale" }).click();
     await expect(page.getByTestId("invoice-total")).toContainText("40.00");
     await expect(page.getByRole("button", { name: "Void", exact: true })).toHaveCount(0);
+  });
+
+  test("a price change reaches the cart before checkout", async ({ page, api }) => {
+    const item = await api.manager.createItem({ sale_price: "100" });
+    await page.goto("/sell");
+    await findAndTap(page, item.name);
+    await expect(page.getByTestId("cart-total")).toContainText("100.00");
+    await api.manager.call("PATCH", `/items/${item.id}`, { sale_price: "120" });
+    await returnToTab(page);
+    await expect(page.getByTestId("cart-total")).toContainText("120.00");
+    await page.getByRole("button", { name: "Complete sale" }).click();
+    await expect(page.getByTestId("invoice-total")).toContainText("120.00");
   });
 
   test("only see their own sales", async ({ page, api }) => {

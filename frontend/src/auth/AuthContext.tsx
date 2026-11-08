@@ -23,10 +23,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(() => Boolean(getToken()));
   const [startupError, setStartupError] = useState<string | null>(null);
 
-  const loadUser = useCallback(() => {
+  // State only changes once the request finishes, so this is safe to run from an effect.
+  const fetchUser = useCallback(() => {
     if (!getToken()) return;
-    setLoading(true);
-    setStartupError(null);
     api<Me>("/auth/me")
       .then(setUser)
       .catch((error) => {
@@ -39,7 +38,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(loadUser, [loadUser]);
+  useEffect(fetchUser, [fetchUser]);
+
+  const retry = useCallback(() => {
+    setLoading(true);
+    setStartupError(null);
+    fetchUser();
+  }, [fetchUser]);
 
   const logout = useCallback(() => {
     setToken(null);
@@ -66,12 +71,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       startupError,
-      retry: loadUser,
+      retry,
       login,
       logout,
       can: (permission) => Boolean(user?.permissions.includes(permission)),
     }),
-    [user, loading, startupError, loadUser, login, logout],
+    [user, loading, startupError, retry, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

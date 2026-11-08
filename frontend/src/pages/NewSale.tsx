@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ChevronDown, Minus, Package, Plus, ScanBarcode, Search, ShoppingCart, Trash2, UserRound } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useNavigate } from "react-router";
 
 import { api, ApiError } from "../api/client";
@@ -8,7 +8,7 @@ import type { Item, ItemList, PaymentMethod, Sale } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../components/Toast";
 import { Button, Card, cx, EmptyState, ErrorBox, Field, Input, Spinner, Textarea } from "../components/ui";
-import { isDecimal, money, PAYMENT_LABELS, qty, round2 } from "../lib/format";
+import { divRound, isDecimal, money, PAYMENT_LABELS, qty, units } from "../lib/format";
 import { useCurrency, useDebounced, useSettings } from "../lib/hooks";
 import { StockBadge } from "./Inventory";
 
@@ -18,13 +18,16 @@ const PAYMENT_METHODS = Object.keys(PAYMENT_LABELS) as PaymentMethod[];
 interface CartLine {
   item: Item;
   quantity: string;
-  unitPrice: string;
+  /** A price the manager typed; null means "the item's current price". */
+  unitPrice: string | null;
   discount: string;
 }
 
 function loadCart(): CartLine[] {
   try {
-    return JSON.parse(sessionStorage.getItem(CART_KEY) ?? "[]");
+    const lines: CartLine[] = JSON.parse(sessionStorage.getItem(CART_KEY) ?? "[]");
+    // Carts saved before typed prices were tracked: an untouched price follows the item again.
+    return lines.map((line) => (line.unitPrice === String(Number(line.item.sale_price)) ? { ...line, unitPrice: null } : line));
   } catch {
     return [];
   }
@@ -34,10 +37,11 @@ function num(value: string) {
   return isDecimal(value) ? Number(value) : 0;
 }
 
-function lineAmounts(line: CartLine) {
-  const gross = round2(num(line.quantity) * num(line.unitPrice));
-  return { gross, total: round2(gross - num(line.discount)) };
-}
+/** Cents as a number, for display. */
+const fromCents = (cents: bigint) => Number(cents) / 100;
+
+/** A quantity in thousandths back to a string, e.g. 2255n -> "2.255". */
+const quantityText = (thousandths: bigint) => String(Number(thousandths) / 1000);
 
 export default function NewSale() {
   const { can } = useAuth();
@@ -115,6 +119,22 @@ export default function NewSale() {
     return null;
   }
 
+  /** The item's current price, from the live data when we have it. */
+  function currentPrice(line: CartLine) {
+    return (latest(line.item) ?? line.item).sale_price;
+  }
+
+  /** The price a line sells at: a manager's typed price, otherwise the current one. */
+  function linePrice(line: CartLine) {
+    return canDiscount && line.unitPrice !== null ? line.unitPrice : currentPrice(line);
+  }
+
+  /** Line amounts in cents, rounded exactly like the server. */
+  function lineCents(line: CartLine) {
+    const gross = divRound(units(line.quantity, 3) * units(linePrice(line), 2), 1000n);
+    return { gross, total: gross - units(line.discount, 2) };
+  }
+
   function addItem(item: Item) {
     const existing = cart.find((line) => line.item.id === item.id);
     const nextQty = existing ? num(existing.quantity) + 1 : 1;
@@ -123,9 +143,10 @@ export default function NewSale() {
       return;
     }
     if (existing) {
-      setCart(cart.map((line) => (line === existing ? { ...line, quantity: String(nextQty) } : line)));
+      const quantity = quantityText(units(existing.quantity, 3) + 1000n);
+      setCart(cart.map((line) => (line === existing ? { ...line, quantity } : line)));
     } else {
-      setCart([...cart, { item, quantity: "1", unitPrice: String(Number(item.sale_price)), discount: "" }]);
+      setCart([...cart, { item, quantity: "1", unitPrice: null, discount: "" }]);
     }
   }
 
@@ -135,13 +156,13 @@ export default function NewSale() {
 
   function step1(index: number, delta: number) {
     const line = cart[index];
-    const next = Math.max(0, round2(num(line.quantity) + delta));
-    if (delta > 0 && next > sellable(line.item)) {
+    const next = units(line.quantity, 3) + BigInt(delta) * 1000n; // exact, keeps all 3 decimals
+    if (delta > 0 && Number(next) / 1000 > sellable(line.item)) {
       toast(stockMessage(line.item), "error");
       return;
     }
-    if (next === 0) setCart(cart.filter((_, i) => i !== index));
-    else updateLine(index, { quantity: String(next) });
+    if (next <= 0n) setCart(cart.filter((_, i) => i !== index));
+    else updateLine(index, { quantity: quantityText(next) });
   }
 
   // Enter in the search box adds an exact SKU match (barcode scanners type + Enter) or a sole result.
@@ -165,12 +186,11 @@ export default function NewSale() {
   const defaultTaxRate = settings.data ? String(Number(settings.data.default_tax_rate)) : "0";
   const taxRate = taxRateInput ?? defaultTaxRate;
 
-  const totals = useMemo(() => {
-    const subtotal = round2(cart.reduce((sum, line) => sum + lineAmounts(line).total, 0));
-    const taxable = round2(subtotal - num(orderDiscount));
-    const tax = round2((taxable * num(taxRate)) / 100);
-    return { subtotal, taxable, tax, total: round2(taxable + tax) };
-  }, [cart, orderDiscount, taxRate]);
+  // Totals in cents, computed the same way as the server (see backend/app/routers/sales.py).
+  const subtotal = cart.reduce((sum, line) => sum + lineCents(line).total, 0n);
+  const taxable = subtotal - units(orderDiscount, 2);
+  const tax = divRound(taxable * units(taxRate, 2), 10_000n);
+  const totals = { subtotal: fromCents(subtotal), taxable, tax: fromCents(tax), total: fromCents(taxable + tax) };
 
   const itemCount = cart.length;
   const problems = cart.map(lineProblem);
@@ -197,11 +217,11 @@ export default function NewSale() {
     if (!cart.length) return setFormError("Add at least one item");
     for (const [index, line] of cart.entries()) {
       if (problems[index]) return setFormError(`${line.item.name}: ${problems[index]}`);
-      if (canDiscount && !isDecimal(line.unitPrice)) return setFormError(`Check the price for ${line.item.name}`);
+      if (canDiscount && line.unitPrice !== null && !isDecimal(line.unitPrice)) return setFormError(`Check the price for ${line.item.name}`);
       if (line.discount && !isDecimal(line.discount)) return setFormError(`Check the discount for ${line.item.name}`);
-      if (lineAmounts(line).total < 0) return setFormError(`Discount on ${line.item.name} is more than the line amount`);
+      if (lineCents(line).total < 0n) return setFormError(`Discount on ${line.item.name} is more than the line amount`);
     }
-    if (totals.taxable < 0) return setFormError("Discount is more than the subtotal");
+    if (totals.taxable < 0n) return setFormError("Discount is more than the subtotal");
 
     checkout.mutate({
       customer_name: customer.name,
@@ -214,7 +234,11 @@ export default function NewSale() {
       lines: cart.map((line) => ({
         item_id: line.item.id,
         quantity: line.quantity.trim(),
-        ...(canDiscount && { unit_price: line.unitPrice.trim(), discount: line.discount.trim() || "0" }),
+        // No unit_price means the server uses the item's current price, like the cart shows.
+        ...(canDiscount && {
+          discount: line.discount.trim() || "0",
+          ...(line.unitPrice !== null && { unit_price: line.unitPrice.trim() }),
+        }),
       })),
     });
   }
@@ -327,7 +351,7 @@ export default function NewSale() {
           ) : (
             <ul className="max-h-[50dvh] divide-y divide-slate-100 overflow-y-auto lg:max-h-[38dvh]">
               {cart.map((line, index) => {
-                const { total } = lineAmounts(line);
+                const total = fromCents(lineCents(line).total);
                 const problem = problems[index];
                 return (
                   <li key={line.item.id} className={cx("px-4 py-3", problem && "bg-red-50/60")}>
@@ -336,7 +360,7 @@ export default function NewSale() {
                         <p className="truncate font-medium">{line.item.name}</p>
                         {!canDiscount && (
                           <p className="text-xs text-slate-500">
-                            {money(line.unitPrice, currency)} / {line.item.unit}
+                            {money(linePrice(line), currency)} / {line.item.unit}
                           </p>
                         )}
                       </div>
@@ -363,7 +387,7 @@ export default function NewSale() {
                         <div className="ml-auto flex gap-1.5">
                           <input
                             inputMode="decimal"
-                            value={line.unitPrice}
+                            value={line.unitPrice ?? String(Number(currentPrice(line)))}
                             onChange={(e) => updateLine(index, { unitPrice: e.target.value })}
                             className="w-20 rounded-lg border-0 px-2 py-1.5 text-right text-sm tabular-nums ring-1 ring-slate-200 focus:ring-2 focus:ring-brand-500 focus:outline-none"
                             aria-label="Unit price"

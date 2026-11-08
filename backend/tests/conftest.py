@@ -7,18 +7,18 @@ os.environ["DATABASE_URL"] = os.environ.get(
 os.environ["INITIAL_ADMIN_EMAIL"] = ""
 os.environ["STATIC_DIR"] = ""
 
-from pathlib import Path  # noqa: E402
+from pathlib import Path
 
-import pytest  # noqa: E402
-from alembic import command  # noqa: E402
-from alembic.config import Config  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import text  # noqa: E402
+import pytest
+from alembic import command
+from alembic.config import Config
+from fastapi.testclient import TestClient
+from sqlalchemy import text
 
-from app.db import SessionLocal, engine  # noqa: E402
-from app.main import app  # noqa: E402
-from app.models import Role, User  # noqa: E402
-from app.security import hash_password, login_throttle  # noqa: E402
+from app.db import SessionLocal, engine
+from app.main import app
+from app.models import Role, User
+from app.security import hash_password, login_throttle
 
 PASSWORD = "correct-horse"
 
