@@ -1,4 +1,24 @@
-# Hydro
+<p align="center">
+  <img src=".github/assets/banner.svg" width="100%" alt="Hydro: inventory and invoicing for a small business">
+</p>
+
+<p align="center">
+  <img alt="React 19" src="https://img.shields.io/badge/React_19-0f3357?style=flat-square&logo=react&logoColor=6ee7ff">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-0f3357?style=flat-square&logo=typescript&logoColor=6ee7ff">
+  <img alt="Tailwind CSS 4" src="https://img.shields.io/badge/Tailwind_CSS_4-0f3357?style=flat-square&logo=tailwindcss&logoColor=6ee7ff">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-0f3357?style=flat-square&logo=fastapi&logoColor=6ee7ff">
+  <img alt="PostgreSQL 17" src="https://img.shields.io/badge/PostgreSQL_17-0f3357?style=flat-square&logo=postgresql&logoColor=6ee7ff">
+  <img alt="Docker Compose" src="https://img.shields.io/badge/Docker_Compose-0f3357?style=flat-square&logo=docker&logoColor=6ee7ff">
+  <img alt="Tailscale" src="https://img.shields.io/badge/Tailscale-0f3357?style=flat-square&logo=tailscale&logoColor=6ee7ff">
+</p>
+
+<p align="center">
+  <a href="#run-it-on-the-shop-laptop-windows"><b>Set it up</b></a> ·
+  <a href="#use-it-from-your-phone-tailscale">Phone access</a> ·
+  <a href="#backups">Backups</a> ·
+  <a href="#roles">Roles</a> ·
+  <a href="#development">Development</a>
+</p>
 
 Inventory and invoicing for a small business. Add any kind of stock, sell from what's available, and issue invoices (on screen, printable, or as a PDF to share from your phone).
 
@@ -10,6 +30,8 @@ Inventory and invoicing for a small business. Add any kind of stock, sell from w
 - **Responsive**: sidebar layout on desktop; bottom tabs and a one-handed checkout on phones. You can install it to the home screen like an app.
 
 ## Stack
+
+![Today, phones and laptops reach Hydro over Tailscale's private HTTPS on the shop laptop, where Docker Compose runs Hydro (React UI and FastAPI API) and PostgreSQL 17. Later, Firebase Hosting serves the frontend and passes the API to Cloud Run, which uses Cloud SQL](.github/assets/architecture.svg)
 
 | | |
 |---|---|

@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 488" width="1280" height="488" role="img" aria-labelledby="title desc">
+  <title id="title">How Hydro is set up</title>
+  <desc id="desc">Today: phones and laptops open Hydro in a browser or as a home-screen app, over Tailscale's private HTTPS, to the shop laptop. There, Docker Compose runs Hydro (the React UI and FastAPI API in one container) and PostgreSQL 17, with its data in a Docker volume. Later on Google Cloud: Firebase Hosting serves the frontend and passes the API to Cloud Run, which uses Cloud SQL.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c2c4d"/>
+      <stop offset="1" stop-color="#041120"/>
+    </linearGradient>
+    <linearGradient id="drop" x1="0.3" y1="0" x2="0.7" y2="1">
+      <stop offset="0" stop-color="#5fe3ff"/>
+      <stop offset="1" stop-color="#0077b6"/>
+    </linearGradient>
+    <clipPath id="drop-clip">
+      <path d="M32 4C32 4 12 26.5 12 40.5a20 20 0 0 0 40 0C52 26.5 32 4 32 4Z"/>
+    </clipPath>
+  </defs>
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif; }
+    .label { font-size: 15px; font-weight: 700; letter-spacing: 2px; fill: #6ee7ff; }
+    .box { fill: #6ee7ff; fill-opacity: 0.07; stroke: #6ee7ff; stroke-opacity: 0.3; stroke-width: 1.5; }
+    .name { font-size: 22px; font-weight: 700; fill: #eef9ff; text-anchor: middle; }
+    .note { font-size: 17px; fill: #8fb3cc; text-anchor: middle; }
+    .icon { fill: none; stroke: #6ee7ff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .flow { fill: none; stroke: #6ee7ff; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 0.1 10; animation: flow 0.9s linear infinite; }
+    .head { fill: none; stroke: #6ee7ff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    .later { fill: #6ee7ff; fill-opacity: 0.04; stroke: #6ee7ff; stroke-opacity: 0.3; stroke-width: 1.5; stroke-dasharray: 6 6; }
+    .pill { font-size: 18px; font-weight: 600; fill: #d4f3ff; text-anchor: middle; }
+    @keyframes flow { to { stroke-dashoffset: -10.1; } }
+    @media (prefers-reduced-motion: reduce) { .flow { animation: none; } }
+  </style>
+
+  <rect width="1280" height="488" rx="24" fill="url(#bg)"/>
+
+  <text class="label" x="48" y="52">TODAY</text>
+
+  <!-- The shop laptop, around the two containers -->
+  <rect x="656" y="72" width="592" height="236" rx="20" fill="#6ee7ff" fill-opacity="0.03" stroke="#6ee7ff" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="8 8"/>
+  <text class="note" x="952" y="292">Shop laptop · Docker Compose</text>
+
+  <rect class="box" x="48" y="84" width="248" height="176" rx="16"/>
+  <rect class="icon" x="158" y="108" width="28" height="48" rx="6"/>
+  <path class="icon" d="M167 149h10"/>
+  <text class="name" x="172" y="204">Phones &amp; laptops</text>
+  <text class="note" x="172" y="232">Browser or home screen</text>
+
+  <rect class="box" x="360" y="84" width="248" height="176" rx="16"/>
+  <path class="icon" d="M474 128v-8a10 10 0 0 1 20 0v8"/>
+  <rect class="icon" x="467" y="128" width="34" height="28" rx="6"/>
+  <path class="icon" d="M484 140v5"/>
+  <text class="name" x="484" y="204">Tailscale</text>
+  <text class="note" x="484" y="232">Private HTTPS</text>
+
+  <rect class="box" x="672" y="84" width="248" height="176" rx="16"/>
+  <svg x="772" y="106" width="48" height="52" viewBox="0 0 64 64">
+    <path d="M32 4C32 4 12 26.5 12 40.5a20 20 0 0 0 40 0C52 26.5 32 4 32 4Z" fill="url(#drop)"/>
+    <g clip-path="url(#drop-clip)">
+      <path d="M6 41c4.5 0 7-4 13-4s8.5 4 13 4 7-4 13-4 8.5 4 13 4v26H6Z" fill="#0a2540" opacity="0.28"/>
+      <path d="M6 48c4.5 0 7-3.5 13-3.5s8.5 3.5 13 3.5 7-3.5 13-3.5 8.5 3.5 13 3.5v20H6Z" fill="#0a2540" opacity="0.22"/>
+    </g>
+    <path d="M23.5 31c-2.6 3.6-4 7-4.2 10.2" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" opacity="0.75"/>
+  </svg>
+  <text class="name" x="796" y="204">Hydro</text>
+  <text class="note" x="796" y="232">React UI + FastAPI API</text>
+
+  <rect class="box" x="984" y="84" width="248" height="176" rx="16"/>
+  <ellipse class="icon" cx="1108" cy="114" rx="18" ry="6"/>
+  <path class="icon" d="M1090 114v36a18 6 0 0 0 36 0v-36M1090 132a18 6 0 0 0 36 0"/>
+  <text class="name" x="1108" y="204">PostgreSQL 17</text>
+  <text class="note" x="1108" y="232">Data in a Docker volume</text>
+
+  <path class="flow" d="M306 172h42"/><path class="head" d="M344 165l8 7-8 7"/>
+  <path class="flow" d="M618 172h42"/><path class="head" d="M656 165l8 7-8 7"/>
+  <path class="flow" d="M930 172h42"/><path class="head" d="M968 165l8 7-8 7"/>
+
+  <text class="label" x="48" y="372">LATER · GOOGLE CLOUD</text>
+  <rect class="later" x="48" y="392" width="303" height="48" rx="24"/>
+  <text class="pill" x="199.5" y="422">Firebase Hosting · frontend</text>
+  <rect class="later" x="415" y="392" width="188" height="48" rx="24"/>
+  <text class="pill" x="509" y="422">Cloud Run · API</text>
+  <rect class="later" x="667" y="392" width="255" height="48" rx="24"/>
+  <text class="pill" x="794.5" y="422">Cloud SQL · PostgreSQL</text>
+  <path class="flow" d="M361 416h42"/><path class="head" d="M399 409l8 7-8 7"/>
+  <path class="flow" d="M613 416h42"/><path class="head" d="M651 409l8 7-8 7"/>
+</svg>

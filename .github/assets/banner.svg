@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1280 400" width="1280" height="400" role="img" aria-labelledby="title">
+  <title id="title">Hydro: inventory and invoicing for a small business</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c2c4d"/>
+      <stop offset="1" stop-color="#041120"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="250" cy="200" r="360" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00b8f0" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#00b8f0" stop-opacity="0"/>
+    </radialGradient>
+    <!-- One 320-wide wave, repeated so it can slide one period and loop seamlessly -->
+    <path id="wave" d="M-320 0c57 0 91-31 160-31s103 31 160 31s91-31 160-31s103 31 160 31s91-31 160-31s103 31 160 31s91-31 160-31s103 31 160 31s91-31 160-31s103 31 160 31s91-31 160-31s103 31 160 31s91-31 160-31s103 31 160 31V64H-320Z"/>
+    <!-- Hydro's app icon (frontend/public/app-icon.svg) -->
+    <linearGradient id="icon-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0f3357"/>
+      <stop offset="1" stop-color="#06182b"/>
+    </linearGradient>
+    <linearGradient id="icon-drop" x1="0.3" y1="0" x2="0.7" y2="1">
+      <stop offset="0" stop-color="#6ee7ff"/>
+      <stop offset="1" stop-color="#0094cc"/>
+    </linearGradient>
+    <clipPath id="icon-tile"><rect width="512" height="512" rx="115"/></clipPath>
+    <clipPath id="icon-clip">
+      <path d="M256 92C256 92 152 208 152 282a104 104 0 0 0 208 0C360 208 256 92 256 92Z"/>
+    </clipPath>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#010810" flood-opacity="0.6"/>
+    </filter>
+    <clipPath id="card"><rect width="1280" height="400" rx="28"/></clipPath>
+  </defs>
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif; }
+    .w1 { animation: left 18s linear infinite; }
+    .w2 { animation: right 13s linear infinite; }
+    .w3 { animation: left 9s linear infinite; }
+    .bubble { fill: #6ee7ff; fill-opacity: 0.2; stroke: #6ee7ff; stroke-opacity: 0.55; stroke-width: 2; animation: bubble 7s ease-in infinite; }
+    .glow { animation: pulse 6s ease-in-out infinite; }
+    @keyframes left { to { transform: translateX(-320px); } }
+    @keyframes right { to { transform: translateX(320px); } }
+    @keyframes bubble { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(-250px); opacity: 0; } }
+    @keyframes pulse { 50% { opacity: 0.7; } }
+    @media (prefers-reduced-motion: reduce) { .w1, .w2, .w3, .bubble, .glow { animation: none; } }
+  </style>
+
+  <g clip-path="url(#card)">
+    <rect width="1280" height="400" fill="url(#bg)"/>
+    <rect class="glow" width="1280" height="400" fill="url(#glow)"/>
+    <circle class="bubble" style="animation-delay:-1s" cx="1150" cy="372" r="6"/>
+    <circle class="bubble" style="animation-delay:-3.5s" cx="1194" cy="382" r="9"/>
+    <circle class="bubble" style="animation-delay:-5.5s" cx="1234" cy="374" r="5"/>
+    <circle class="bubble" style="animation-delay:-2s" cx="1118" cy="388" r="4"/>
+    <circle class="bubble" style="animation-delay:-6.3s" cx="1216" cy="392" r="7"/>
+    <g transform="translate(0 356)"><use class="w1" href="#wave" xlink:href="#wave" fill="#00b8f0" fill-opacity="0.10"/></g>
+    <g transform="translate(-160 372)"><use class="w2" href="#wave" xlink:href="#wave" fill="#00b8f0" fill-opacity="0.08"/></g>
+    <g transform="translate(-80 388)"><use class="w3" href="#wave" xlink:href="#wave" fill="#020b16" fill-opacity="0.45"/></g>
+  </g>
+
+  <g filter="url(#shadow)"><rect x="130" y="80" width="240" height="240" rx="54" fill="#06182b"/></g>
+  <svg x="130" y="80" width="240" height="240" viewBox="0 0 512 512">
+    <g clip-path="url(#icon-tile)">
+      <rect width="512" height="512" fill="url(#icon-bg)"/>
+      <path d="M0 420c40 0 64-22 112-22s72 22 112 22 64-22 112-22 72 22 112 22 64-22 64-22v114H0Z" fill="#00b8f0" opacity="0.10"/>
+      <path d="M256 92C256 92 152 208 152 282a104 104 0 0 0 208 0C360 208 256 92 256 92Z" fill="url(#icon-drop)"/>
+      <g clip-path="url(#icon-clip)">
+        <path d="M120 287c24 0 37-21 68-21s44 21 68 21 37-21 68-21 44 21 68 21v120H120Z" fill="#0a2540" opacity="0.28"/>
+        <path d="M120 323c24 0 37-18 68-18s44 18 68 18 37-18 68-18 44 18 68 18v90H120Z" fill="#0a2540" opacity="0.22"/>
+      </g>
+      <path d="M212 226c-14 19-21 37-22 54" fill="none" stroke="#fff" stroke-width="16" stroke-linecap="round" opacity="0.75"/>
+    </g>
+  </svg>
+  <rect x="130.75" y="80.75" width="238.5" height="238.5" rx="53.5" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1.5"/>
+
+  <text x="420" y="188" font-size="104" font-weight="700" fill="#ffffff" letter-spacing="-2">Hydro</text>
+  <text x="422" y="244" font-size="30" font-weight="500" fill="#bfe3f5">Inventory and invoicing for a <tspan fill="#6ee7ff">small business</tspan></text>
+
+  <g font-size="18" font-weight="600" fill="#d4f3ff" text-anchor="middle">
+    <g fill="#6ee7ff" fill-opacity="0.08" stroke="#6ee7ff" stroke-opacity="0.35" stroke-width="1.5">
+      <rect x="422" y="282" width="178" height="40" rx="20"/>
+      <rect x="612" y="282" width="169" height="40" rx="20"/>
+      <rect x="793" y="282" width="159" height="40" rx="20"/>
+      <rect x="964" y="282" width="188" height="40" rx="20"/>
+    </g>
+    <text x="511" y="308">Stock tracking</text>
+    <text x="696.5" y="308">Point of sale</text>
+    <text x="872.5" y="308">PDF invoices</text>
+    <text x="1058" y="308">Works on phones</text>
+  </g>
+</svg>
