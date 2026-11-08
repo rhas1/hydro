@@ -2,7 +2,9 @@
 # FastAPI serves the API under /api and the built frontend at /.
 # For Cloud Run + Firebase, backend/Dockerfile (API only) is used instead.
 
-FROM node:24-slim AS web
+# The built frontend is plain HTML/JS/CSS, the same for every CPU, so always build it
+# natively on the machine doing the build (fast, and no emulation when targeting another CPU).
+FROM --platform=$BUILDPLATFORM node:24-slim AS web
 WORKDIR /web
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
@@ -21,8 +23,10 @@ COPY backend/alembic ./alembic
 COPY backend/app ./app
 COPY --from=web /web/dist ./static
 
-RUN useradd --system --uid 1001 hydro
+# Strip Windows (CRLF) line endings in case the script was edited on Windows,
+# and run it through sh so it doesn't need the executable bit.
+RUN sed -i 's/\r$//' entrypoint.sh && useradd --system --uid 1001 hydro
 USER hydro
 
 EXPOSE 8000
-CMD ["./entrypoint.sh"]
+CMD ["sh", "./entrypoint.sh"]

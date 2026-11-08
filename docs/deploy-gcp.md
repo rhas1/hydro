@@ -98,17 +98,26 @@ The API already sends `Cache-Control: no-store`, so Firebase's CDN never caches 
 
 ## 6. Move your data from the laptop
 
-1. Take a final backup on the laptop with `scripts/backup.sh`, and stop selling until the move is done.
-2. Restore it into Cloud SQL through the [Cloud SQL Auth Proxy](https://cloud.google.com/sql/docs/postgres/connect-auth-proxy):
+Everything happens in Cloud Shell, so the laptop only has to make a normal backup.
+
+1. **Take a final backup on the laptop,** and stop selling there until the move is done. In PowerShell, from the `hydro` folder, run `powershell -ExecutionPolicy Bypass -File scripts\backup.ps1`. On Mac or Linux, run `scripts/backup.sh`.
+2. **Upload the backup to Cloud Shell.** Open [Cloud Shell](https://shell.cloud.google.com), choose **⋮ → Upload**, and pick the newest `backups\hydro-<timestamp>.dump`. It lands in your Cloud Shell home folder.
+3. **Restore it into Cloud SQL** through the [Cloud SQL Auth Proxy](https://cloud.google.com/sql/docs/postgres/connect-auth-proxy), which is pre-installed in Cloud Shell. `pg_restore` runs from the official Postgres 17 image, so its version matches the backup:
 
    ```sh
    cloud-sql-proxy $CONNECTION_NAME --port 6543 &
-   PGPASSWORD="$DB_PASSWORD" pg_restore -h 127.0.0.1 -p 6543 -U hydro -d hydro \
-     --clean --if-exists --no-owner --no-privileges backups/hydro-<timestamp>.dump
+   docker run --rm --network host -v "$HOME:/backup" -e PGPASSWORD="$DB_PASSWORD" postgres:17-alpine \
+     pg_restore -h 127.0.0.1 -p 6543 -U hydro -d hydro \
+     --clean --if-exists --no-owner --no-privileges /backup/hydro-<timestamp>.dump
+   kill %1   # stop the proxy
    ```
-   Use a `pg_restore` from PostgreSQL 17 or newer. If you don't have one installed, run it inside the laptop's database container with `docker compose exec -T db pg_restore ... < file`, using `-h host.docker.internal` to reach the proxy.
 
-3. Redeploy or restart `hydro-api`. Migrations bring the schema up to date, and all your users, items, sales and invoice numbers carry over.
+   `$DB_PASSWORD` is the database password from step 2. If you no longer have it, set a new one with `gcloud sql users set-password hydro --instance=hydro-db --password=...`, and update the `hydro-database-url` secret to match.
+
+   `--clean` replaces whatever is already in the database. That includes the empty tables and any admin account that the API's first start created.
+
+4. **Restart the API** so it starts from the restored data: `gcloud run services update hydro-api --region $REGION --update-env-vars DATA_MOVED=1`. All your users, items, sales and invoice numbers carry over, and your existing passwords keep working.
+5. **Clean up.** Delete the uploaded `.dump` file from Cloud Shell (`rm ~/hydro-*.dump`), because it contains all your data, including password hashes.
 
 ## Running the whole thing on Cloud Run instead
 

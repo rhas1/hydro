@@ -11,8 +11,10 @@ COPY alembic.ini entrypoint.sh ./
 COPY alembic ./alembic
 COPY app ./app
 
-RUN useradd --system --uid 1001 hydro
+# Strip Windows (CRLF) line endings in case the script was edited on Windows,
+# and run it through sh so it doesn't need the executable bit.
+RUN sed -i 's/\r$//' entrypoint.sh && useradd --system --uid 1001 hydro
 USER hydro
 
 EXPOSE 8000
-CMD ["./entrypoint.sh"]
+CMD ["sh", "./entrypoint.sh"]

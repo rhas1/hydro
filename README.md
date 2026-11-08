@@ -16,7 +16,7 @@ Inventory and invoicing for a small business. Add any kind of stock, sell from w
 | Frontend | Vite, React 19, TypeScript, Tailwind CSS 4, TanStack Query (`frontend/`) |
 | Backend | FastAPI, SQLAlchemy 2, Alembic, JWT auth, fpdf2 for PDFs (`backend/`) |
 | Database | PostgreSQL 17, which is compatible with Cloud SQL |
-| Today | Docker Compose on one laptop, reached from phones over Tailscale |
+| Today | Docker Compose on one Windows laptop, reached from phones over Tailscale |
 | Later | Cloud Run (API) + Cloud SQL + Firebase Hosting (frontend). See [docs/deploy-gcp.md](docs/deploy-gcp.md) |
 
 The frontend always calls the API at `/api/...` on its own origin, so you don't need CORS in any setup:
@@ -24,63 +24,102 @@ The frontend always calls the API at `/api/...` on its own origin, so you don't 
 - **Development**: Vite proxies `/api` to the backend.
 - **GCP**: Firebase Hosting rewrites `/api/**` to the Cloud Run service.
 
-## Run it on the laptop
+## Run it on the shop laptop (Windows)
 
-You need [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or another Docker engine with Compose).
+### 1. Install
 
-```sh
+- [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/). It runs on WSL 2; let the installer set that up and restart if it asks. Docker Desktop is free for small businesses (under 250 employees and US$10M revenue).
+- [Git for Windows](https://git-scm.com/download/win), to download Hydro and fetch updates.
+
+### 2. Download Hydro and create its settings
+
+In PowerShell:
+
+```powershell
+cd $HOME
+git clone https://github.com/rhas1/hydro.git
 cd hydro
-cp .env.example .env        # fill in POSTGRES_PASSWORD, SECRET_KEY, INITIAL_ADMIN_*
+powershell -ExecutionPolicy Bypass -File scripts\new-env.ps1
+```
+
+`new-env.ps1` asks for the first admin's email, name and password, generates strong random secrets for everything else, and writes them to `.env`. Keep `.env` private: it holds the keys to your data.
+
+### 3. Start it
+
+```powershell
 docker compose up -d --build
 ```
 
-Open http://localhost:8000 and sign in with `INITIAL_ADMIN_EMAIL` / `INITIAL_ADMIN_PASSWORD`. Then:
+The first build takes a few minutes. Then open http://localhost:8000 and sign in as the admin you just set up:
 1. Go to **Settings** and enter your business name, address, currency, time zone and tax rate. These appear on every invoice.
 2. Go to **Users** and add accounts for staff.
-3. Once you've signed in, you can delete `INITIAL_ADMIN_PASSWORD` from `.env`. It's only used when the database has no users yet.
+3. Once you've signed in, open `.env` (`notepad .env`) and delete the `INITIAL_ADMIN_PASSWORD` line. It's only used when the database has no users yet.
 
-Database migrations run automatically every time the app starts. To update to a newer version of the code, run `docker compose up -d --build` again.
+To update to a newer version later:
+
+```powershell
+git pull
+docker compose up -d --build
+```
+
+Database migrations run automatically every time the app starts.
 
 ### Keep it running
 
-- In Docker Desktop, open **Settings → General** and turn on *Start Docker Desktop when you sign in*. Both containers use `restart: unless-stopped`, so they come back after a reboot.
-- Stop the laptop sleeping while it's plugged in. On macOS: **System Settings → Battery → Options → Prevent automatic sleeping on power adapter when the display is off**.
+- **Start Docker with Windows.** In Docker Desktop, open **Settings → General** and turn on *Start Docker Desktop when you sign in to your computer*. Both containers use `restart: unless-stopped`, so they come back when Docker starts, and the app restarts by itself if it ever crashes.
+- **Restarts need a sign-in.** Docker Desktop only starts once someone signs in to Windows, so after a restart (Windows Update, for example) Hydro stays offline until you sign in. To make it come back on its own, turn on automatic sign-in with Microsoft's [Autologon](https://learn.microsoft.com/sysinternals/downloads/autologon) tool. Only do this if the laptop is kept somewhere secure.
+- **Never sleep on power.** Go to **Settings → System → Power & battery** and, under *Screen, sleep & hibernate timeouts*, set sleep when plugged in to **Never**. If you keep the lid closed, also go to **Control Panel → Power Options → Choose what closing the lid does** and set *When plugged in* to **Do nothing**.
+- **Control update restarts.** Go to **Settings → Windows Update → Advanced options → Active hours** and cover your trading hours, so update restarts happen while the shop is closed.
 
 ### Use it from your phone (Tailscale)
 
-1. Install [Tailscale](https://tailscale.com/download) on the laptop and on the phone, and sign in to the same tailnet on both.
-2. On the laptop, publish Hydro to your tailnet over HTTPS:
-   ```sh
+1. Install [Tailscale](https://tailscale.com/download) on the laptop and on the phone, and sign in to the same account on both.
+2. On the laptop, open the Tailscale icon in the system tray and turn on **Preferences → Run unattended**, so it stays connected even when nobody is signed in.
+3. In PowerShell on the laptop, publish Hydro to your tailnet over HTTPS:
+   ```powershell
    tailscale serve --bg 8000
    ```
-   It prints an address like `https://my-laptop.tailxxxx.ts.net`. The first time, Tailscale may ask you to turn on HTTPS certificates for the tailnet. Accept.
-3. On the phone, with Tailscale connected, open that address and use **Add to Home Screen**.
+   It prints an address like `https://shop-laptop.tailxxxx.ts.net`. The first time, Tailscale may ask you to turn on HTTPS certificates for the tailnet. Accept.
+4. On the phone, with Tailscale connected, open that address and add it to the home screen.
 
-The app container only listens on `127.0.0.1`, so it isn't reachable from your home Wi‑Fi, only through Tailscale. `tailscale serve` also gives you HTTPS, which the phone's **Share** button for invoice PDFs needs. To serve plain HTTP on the Tailscale IP instead, set `HYDRO_BIND=0.0.0.0` in `.env`. This also exposes it on your home network.
+The app only listens on `127.0.0.1`, so it can't be reached from the shop's Wi‑Fi, only through Tailscale. `tailscale serve` also gives you HTTPS, which the phone's **Share** button for invoice PDFs needs. To serve plain HTTP on the Tailscale IP instead, set `HYDRO_BIND=0.0.0.0` in `.env`. This also exposes it on your local network.
 
 ### Backups
 
-Everything lives in the `pgdata` Docker volume on the laptop. Back it up:
+Everything lives in a Docker volume on the laptop. In PowerShell, from the `hydro` folder:
 
-```sh
-scripts/backup.sh                    # writes backups/hydro-<timestamp>.dump, keeps the newest 30
-scripts/restore.sh backups/hydro-….dump   # replaces all data (asks first)
+```powershell
+# Back up to backups\hydro-<timestamp>.dump and also copy it to OneDrive (keeps the newest 30 in each)
+powershell -ExecutionPolicy Bypass -File scripts\backup.ps1 -CopyTo "$env:OneDrive\Hydro backups"
+
+# Replace ALL data with a backup (asks you to type 'restore' first)
+powershell -ExecutionPolicy Bypass -File scripts\restore.ps1 backups\hydro-20260101-210000.dump
 ```
 
-To back up daily, schedule it with `crontab -e`:
+`-CopyTo` is optional, but use it. A laptop is a single point of failure, and a copy in OneDrive (or Google Drive, or a USB stick) is what saves you if it's lost or broken. These backup files are also how you'll move your data to Cloud SQL later.
 
-```
-0 21 * * * /full/path/to/hydro/scripts/backup.sh >> /full/path/to/hydro/backups/backup.log 2>&1
-```
-
-Copy the `backups/` folder somewhere off the laptop (cloud drive, USB) regularly. A laptop is a single point of failure. These dump files are also how you'll move your data to Cloud SQL later.
+To back up every day, set it up in **Task Scheduler**:
+1. Choose **Create Basic Task…**, name it `Hydro backup`, and pick **Daily** at a time the shop is closed but the laptop is on (e.g. 9:00 PM).
+2. For the action, pick **Start a program**. Set *Program* to `powershell.exe` and *Add arguments* to the following, with your own paths:
+   ```
+   -NoProfile -ExecutionPolicy Bypass -File "C:\Users\<you>\hydro\scripts\backup.ps1" -CopyTo "C:\Users\<you>\OneDrive\Hydro backups"
+   ```
+3. Finish. The task runs while you're signed in, which Docker Desktop needs anyway. Every now and then, check that new files are appearing in the OneDrive folder.
 
 ### Admin commands
 
-```sh
+```powershell
 docker compose exec app python -m app.cli reset-password someone@example.com
 docker compose exec app python -m app.cli create-admin you@example.com "Your Name"
 ```
+
+### On a Mac or Linux instead
+
+The steps are the same, apart from these:
+- **Docker:** on a Mac, [Colima](https://github.com/abiosoft/colima) is a free, command-line-only alternative to Docker Desktop. Install it with `brew install colima docker docker-compose docker-buildx`, add `"cliPluginsExtraDirs": ["/opt/homebrew/lib/docker/cli-plugins"]` to `~/.docker/config.json`, then run `colima start`. Run `brew services start colima` to start it at login.
+- **Settings:** `cp .env.example .env` and fill it in. Generate the secrets with `openssl rand -hex 32`.
+- **Backups:** `scripts/backup.sh` and `scripts/restore.sh <file>`. To run the backup daily, schedule it with `crontab -e`:
+  `0 21 * * * /full/path/to/hydro/scripts/backup.sh >> /full/path/to/hydro/backups/backup.log 2>&1`
 
 ## Roles
 
@@ -98,7 +137,7 @@ Permissions are defined in one place: `ROLE_PERMISSIONS` in [backend/app/permiss
 
 ## Security notes
 
-- **`SECRET_KEY` signs every login.** Use a long random value (`openssl rand -hex 32`) and keep `.env` private. In production the app refuses to start without a 32+ character key. In development, if it's unset, a random key is generated on each start, so sign-ins don't survive restarts.
+- **`SECRET_KEY` signs every login.** Use a long random value (`scripts\new-env.ps1` generates one; on Mac/Linux, `openssl rand -hex 32`) and keep `.env` private. In production the app refuses to start without a 32+ character key. In development, if it's unset, a random key is generated on each start, so sign-ins don't survive restarts.
 - **Changing or resetting a password signs that user out on every other device.** To lock someone out immediately, disable them on the Users page.
 - **Ten wrong passwords for one account block sign-in to it for 15 minutes.**
 - **The frontend is served with a strict Content-Security-Policy** and other browser security headers. Login tokens are kept in the browser's local storage, and the CSP is the main defence for them.
@@ -139,7 +178,7 @@ TEST_DATABASE_URL=postgresql+psycopg://hydro:<POSTGRES_PASSWORD>@localhost:5432/
 hydro/
 ├── backend/            FastAPI app (app/), migrations (alembic/), tests, Cloud Run Dockerfile
 ├── frontend/           Vite + React app; public/ holds the icon set and PWA manifest
-├── scripts/            backup.sh, restore.sh
+├── scripts/            new-env.ps1, backup.ps1, restore.ps1 (Windows); backup.sh, restore.sh (Mac/Linux)
 ├── docs/deploy-gcp.md  moving to Cloud Run + Cloud SQL + Firebase Hosting
 ├── Dockerfile          all-in-one image (frontend + API) used by docker-compose
 ├── docker-compose.yml  laptop deployment

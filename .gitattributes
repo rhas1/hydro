@@ -1,0 +1,12 @@
+# Check text files out with LF endings on every OS, including Git for Windows
+# (whose default would convert them to CRLF). Files like backend/entrypoint.sh
+# run inside Linux containers and break with CRLF endings.
+* text=auto eol=lf
+
+# PowerShell scripts are run on Windows; keep them Windows-style.
+*.ps1 text eol=crlf
+
+*.png binary
+*.ico binary
+*.woff2 binary
+*.dump binary
